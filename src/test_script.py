@@ -65,7 +65,6 @@ class TestSuite:
     def __init__(self):
         self.result_summary = {}
 
-
     def _setup(self) -> dict:
         result = api_request(API_URI, API_PARAMETERS)
         return result
@@ -76,12 +75,12 @@ class TestSuite:
     def test_response_name(self, request_response: dict):
         expected_value = "Carbon credits"
         name = request_response.get("Name")
-        verify(name == expected_value, f"Name returned as expected. {name}=={expected_value}")
+        verify(name == expected_value, f"Name returned as expected. '{name}'=='{expected_value}'")
 
     def test_relist_true(self, request_response: dict):
         expected_value = True
         can_relist = request_response.get("CanRelist")
-        verify(can_relist == expected_value, f"CanRelist returned as expected. {can_relist}=={expected_value}")
+        verify(can_relist == expected_value, f"CanRelist returned as expected. '{can_relist}'=='{expected_value}'")
 
     def test_gallery_promotion_description(self, request_response: dict):
         expected_text = "2x larger image"
@@ -90,14 +89,20 @@ class TestSuite:
         filtered_promotions = list(filter(lambda x: x.get("Name") == target_name, promotions))
         verify(len(filtered_promotions) == 1, f"Target name is unique within the promotions array. "
                                               f"Found {len(filtered_promotions)} entries")
-
-        verify(expected_text in filtered_promotions[0].get("description", ""),
-               f"Expected text found within targeted promotion. {expected_text} in {filtered_promotions}")
+        target_description = filtered_promotions[0].get("Description", "")
+        verify(expected_text in target_description,
+               f"Expected text found within targeted promotion. '{expected_text}' in '{target_description}'")
 
 
     def print_summary(self):
-        #TODO pretty print the summary
-        pass
+        print("//===============================\\\\")
+        print("Test Name - Stage - Outcome")
+        for test_name, test_summary in self.result_summary.items():
+            print(f"{test_name} - {test_summary.get('stage')} - {test_summary.get('result')}")
+        print("\n")
+        passed_tests = filter(lambda x: x["result"] == "PASSED", self.result_summary.values())
+        print(f"Tests passed: {len(list(passed_tests))}/{len(self.result_summary)}")
+
 
     def __call__(self, *args, **kwargs):
         test_methods = [
@@ -128,6 +133,5 @@ class TestSuite:
 
 
 if __name__ == "__main__":
-    #TODO call test functions, then call print summary
     test_suite = TestSuite()
     test_suite()
