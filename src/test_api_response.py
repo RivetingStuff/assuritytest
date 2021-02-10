@@ -13,71 +13,11 @@ Test coverage:
 
 """
 import time
-import requests
 
-from tabulate import tabulate
-import colored
-from colored import stylize
+from .utilities import execute_test_loop, print_result_summary, verify, api_request
 
 API_URI = "https://api.tmsandbox.co.nz/v1/Categories/6327/Details.json?"
 API_PARAMETERS = {"catalogue": "false"}
-
-
-class APIException(Exception):
-    """
-    Exception class related to API request status'
-    """
-    message: str
-
-    def __init__(self, message: str):
-        self.message = message
-
-
-class VerificationException(Exception):
-    """
-    Exception class relating to test verification condition resolving to a falsey value
-    """
-    message: str
-
-    def __init__(self, message: str):
-        self.message = message
-
-
-def api_request(api_address: str, request: dict) -> dict:
-    """
-    Make a GET request to the provided API endpoint given the parameters provided in request
-    :param api_address: URL of the API endpoint being tested
-    :param request: GET parameters for the request
-    :return: json reponse from endpoint
-    """
-
-    error_tolerance = 3
-    error_count = 0
-    response = None
-
-    while (error_count := error_count + 1) <= error_tolerance:
-        response = requests.get(api_address, request)
-        if response.status_code == 200:
-            break
-    else:
-        raise APIException(f"API request failed with the following cause {response.reason}")
-
-    return response.json()
-
-
-def verify(conditional: bool, message: str) -> None:
-    """
-    If conditional is falsey, raise verification exception with the provided message.
-    Else print the message
-    :param conditional: Evaluated conditional statement
-    :param message: log message explaining the intention of this verification
-    :return: None
-    """
-
-    message = f"Verification {'PASSED' if conditional else 'FAILED'}: {message}"
-    print(stylize(message, colored.fg('green') if conditional else colored.fg('red')))
-    if not conditional:
-        raise VerificationException(message)
 
 
 class TestSuite(object):
@@ -147,32 +87,7 @@ class TestSuite(object):
                f"Expected text found within targeted promotion. '{expected_text}' in '{target_description}'")
 
     def _print_summary(self):
-        columns = ["Test Name", "Stage", "Outcome"]
-        color_map = {
-            "PASSED": colored.fg('green'),
-            "FAILED": colored.fg('red'),
-        }
-        table_rows = []
-        # Tabulate expects a 2D array as the format of table data. The result_summary needs to be restructured
-        for test_name, test_summary in self.result_summary.items():
-            test_result = test_summary.get("result")
-            test_message = test_summary.get("message")
-
-            color_fg = color_map.get(test_result, colored.fg('yellow'))
-            test_result_long = f"{test_result}{': ' if test_message else ''}{test_message}"
-
-            table_rows.append([
-                stylize(test_name, color_fg),
-                stylize(test_summary.get("stage"), color_fg),
-                stylize(test_result_long, color_fg),
-            ])
-
-        print("\n")
-        print(tabulate(table_rows, headers=columns, tablefmt="grid"))
-        print("\n")
-        passed_tests = filter(lambda x: x["result"] == "PASSED", self.result_summary.values())
-        print(f"Tests passed: {len(list(passed_tests))}/{len(self.result_summary)}"
-              f"\tduration: {self.test_duration:.2f} seconds")
+        print_result_summary(self.result_summary, self.test_duration)
 
     def __call__(self, *args, **kwargs):
         test_methods = [
@@ -181,28 +96,7 @@ class TestSuite(object):
             self.test_gallery_promotion_description
         ]
         start_time = time.monotonic()
-        for test in test_methods:
-            # Keeping the stage value up-to-date makes debugging much easier
-            stage = "pre-test"
-            message = ""
-            try:
-                stage = "setup"
-                request_response: dict = self._setup()
-                stage = "call"
-                test(request_response)
-                stage = "teardown"
-                self._teardown()
-                result = "PASSED"
-                stage = "complete"
-            except Exception as ex:
-                result = "FAILED"
-                message = f"{str(ex)}"
-
-            self.result_summary[test.__name__] = {
-                "stage": stage,
-                "result": result,
-                "message": message
-            }
+        execute_test_loop(self._setup, self._teardown, test_methods)
         self.test_duration = time.monotonic() - start_time
         self._print_summary()
 
