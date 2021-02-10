@@ -12,8 +12,12 @@ Test coverage:
     Requirement 3) covered by test_gallery_promotion_description
 
 """
-import requests
 import time
+import requests
+
+from tabulate import tabulate
+import colored
+from colored import stylize
 
 API_URI = "https://api.tmsandbox.co.nz/v1/Categories/6327/Details.json?"
 API_PARAMETERS = {"catalogue": "false"}
@@ -69,7 +73,9 @@ def verify(conditional: bool, message: str) -> None:
     :param message: log message explaining the intention of this verification
     :return: None
     """
-    print(f"Verification {'PASSED' if conditional else 'FAILED'}: {message}")
+
+    message = f"Verification {'PASSED' if conditional else 'FAILED'}: {message}"
+    print(stylize(message, colored.fg('green') if conditional else colored.fg('red')))
     if not conditional:
         raise VerificationException(message)
 
@@ -141,10 +147,28 @@ class TestSuite(object):
                f"Expected text found within targeted promotion. '{expected_text}' in '{target_description}'")
 
     def _print_summary(self):
-        print("//===============================\\\\")
-        print("Test Name - Stage - Outcome")
+        columns = ["Test Name", "Stage", "Outcome"]
+        color_map = {
+            "PASSED": colored.fg('green'),
+            "FAILED": colored.fg('red'),
+        }
+        table_rows = []
+        # Tabulate expects a 2D array as the format of table data. The result_summary needs to be restructured
         for test_name, test_summary in self.result_summary.items():
-            print(f"{test_name} - {test_summary.get('stage')} - {test_summary.get('result')}")
+            test_result = test_summary.get("result")
+            test_message = test_summary.get("message")
+
+            color_fg = color_map.get(test_result, colored.fg('yellow'))
+            test_result_long = f"{test_result}{': ' if test_message else ''}{test_message}"
+
+            table_rows.append([
+                stylize(test_name, color_fg),
+                stylize(test_summary.get("stage"), color_fg),
+                stylize(test_result_long, color_fg),
+            ])
+
+        print("\n")
+        print(tabulate(table_rows, headers=columns, tablefmt="grid"))
         print("\n")
         passed_tests = filter(lambda x: x["result"] == "PASSED", self.result_summary.values())
         print(f"Tests passed: {len(list(passed_tests))}/{len(self.result_summary)}"
@@ -160,6 +184,7 @@ class TestSuite(object):
         for test in test_methods:
             # Keeping the stage value up-to-date makes debugging much easier
             stage = "pre-test"
+            message = ""
             try:
                 stage = "setup"
                 request_response: dict = self._setup()
@@ -170,11 +195,13 @@ class TestSuite(object):
                 result = "PASSED"
                 stage = "complete"
             except Exception as ex:
-                result = f"FAILED: {str(ex)}"
+                result = "FAILED"
+                message = f"{str(ex)}"
 
             self.result_summary[test.__name__] = {
                 "stage": stage,
-                "result": result
+                "result": result,
+                "message": message
             }
         self.test_duration = time.monotonic() - start_time
         self._print_summary()
