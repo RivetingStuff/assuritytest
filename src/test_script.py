@@ -62,6 +62,10 @@ def verify(conditional: bool, message: str) -> None:
 class TestSuite:
     result_summary: dict
 
+    def __init__(self):
+        self.result_summary = {}
+
+
     def _setup(self) -> dict:
         result = api_request(API_URI, API_PARAMETERS)
         return result
@@ -75,7 +79,7 @@ class TestSuite:
         verify(name == expected_value, f"Name returned as expected. {name}=={expected_value}")
 
     def test_relist_true(self, request_response: dict):
-        expected_value = "True"
+        expected_value = True
         can_relist = request_response.get("CanRelist")
         verify(can_relist == expected_value, f"CanRelist returned as expected. {can_relist}=={expected_value}")
 
@@ -96,7 +100,12 @@ class TestSuite:
         pass
 
     def __call__(self, *args, **kwargs):
-        for test in [self.test_method1, self.test_method2, self.test_method3]:
+        test_methods = [
+            self.test_response_name,
+            self.test_relist_true,
+            self.test_gallery_promotion_description
+        ]
+        for test in test_methods:
             stage = "pre-test"
             try:
                 stage = "setup"
@@ -110,12 +119,15 @@ class TestSuite:
             except Exception as ex:
                 result = f"FAILED: {str(ex)}"
 
-            self.result_summary[str(test)]["stage"] = stage
-            self.result_summary[str(test)]["result"] = result
+            self.result_summary[test.__name__] = {
+                "stage": stage,
+                "result": result
+            }
 
         self.print_summary()
 
 
 if __name__ == "__main__":
     #TODO call test functions, then call print summary
-    TestSuite()
+    test_suite = TestSuite()
+    test_suite()
